@@ -1,0 +1,75 @@
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+
+// --- CONFIGURACIÓN ---
+const PREFIX = '!'; 
+// ¡IMPORTANTE! Reemplaza 'TU_TOKEN_AQUI' por el token real de tu bot.
+const TOKEN = 'TU_TOKEN_AQUI'; 
+
+// Necesitas el intent MessageContent para leer mensajes con prefijo
+const client = new Client({ 
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent 
+    ] 
+});
+
+// Inicializa la colección de comandos
+client.commands = new Collection(); 
+
+// --- 1. CARGA DINÁMICA DE COMANDOS ---
+
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+    const filePath = path.join(commandsPath, file);
+    const command = require(filePath);
+    
+    // Establece el comando en la Colección
+    if (command.name) {
+        client.commands.set(command.name, command);
+        console.log(`Comando cargado: ${command.name}`);
+    } else {
+        console.warn(`[ADVERTENCIA] El archivo ${file} no tiene la propiedad 'name'.`);
+    }
+}
+
+// --- 2. MANEJO DEL EVENTO ready ---
+
+client.on('ready', () => {
+    // Aquí usamos client.commands.size para mostrar cuántos comandos se cargaron
+    console.log(`¡Bot iniciado como ${client.user.tag}! ${client.commands.size} comandos cargados.`);
+});
+
+// --- 3. MANEJO DE COMANDOS DE PREFIJO ---
+
+client.on('messageCreate', message => {
+    // 3a. Filtrar: Ignora bots y mensajes sin el prefijo
+    // CORRECCIÓN: Sintaxis y uso de 'length'
+    if (message.author.bot || !message.content.startsWith(PREFIX)) {
+        return;
+    }
+
+    // 3b. Procesar el comando y argumentos
+    // CORRECCIÓN: Aquí se corrigió 'lenght' a 'length' y se encadenaron los métodos.
+    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+    const commandName = args.shift().toLowerCase(); // El nombre del comando
+
+    // 3c. Buscar y ejecutar el comando
+    const command = client.commands.get(commandName);
+
+    // Si no encuentra el comando, simplemente retorna
+    if (!command) return;
+
+    try {
+        command.execute(message, args, client);
+    } catch (error) {
+        console.error(error);
+        message.reply('Hubo un error al intentar ejecutar ese comando.');
+    }
+});
+
+client.login(TOKEN);
